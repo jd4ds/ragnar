@@ -206,17 +206,21 @@ embed_openai_core <- function(
     data$dimensions <- as.integer(dims)
   }
 
-  # For OpenAI, the model name goes in the body. For Azure, it's in the URL.
-  if (api_type == "openai") {
-    data$model <- model
-  }
-
   starts <- seq.int(from = 1L, to = length(text), by = batch_size)
   ends <- c(starts[-1L] - 1L, length(text))
 
   embeddings <- map2(starts, ends, function(start, end) {
     ## max input is 8191 tokens per chunk... what happens if too long?
     data$input <- as.list(text[start:end])
+
+    if (api_type == "openai") {
+      # For standard OpenAI, add the model to the request body.
+      data$model <- model
+    } else {
+      # For Azure, the 'model' key MUST NOT be in the body.
+      # Setting it to NULL ensures httr2 removes it from the JSON payload.
+      data$model <- NULL
+    }
 
     # --- API-specific request building ---
     if (api_type == "azure") {
