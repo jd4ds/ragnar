@@ -134,7 +134,7 @@ embed_openai <- function(
 #' @rdname embed_ollama
 embed_azure_openai <- function(
     x,
-    deployment,
+    model,
     api_version = "2024-02-15-preview",
     base_url = get_envvar("AZURE_OPENAI_ENDPOINT"),
     api_key = get_envvar("AZURE_OPENAI_API_KEY"),
@@ -145,7 +145,7 @@ embed_azure_openai <- function(
   build_req <- function() {
     httr2::request(base_url) |>
       httr2::req_user_agent(ragnar_user_agent()) |>
-      httr2::req_url_path_append(sprintf("/openai/deployments/%s/embeddings", deployment)) |>
+      httr2::req_url_path_append(sprintf("/openai/deployments/%s/embeddings", model)) |>
       httr2::req_url_query(`api-version` = api_version) |>
       httr2::req_headers(`api-key` = api_key) |>
       httr2::req_retry(max_tries = 2L)
