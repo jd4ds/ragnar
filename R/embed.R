@@ -89,26 +89,97 @@ embed_ollama <- function(
 #' @export
 #' @rdname embed_ollama
 embed_openai <- function(
-  x,
-  model = "text-embedding-3-small",
-  base_url = "https://api.openai.com/v1",
-  api_key = get_envvar("OPENAI_API_KEY"),
-  dims = NULL,
-  user = get_user(),
-  batch_size = 20L
+    x,
+    model = "text-embedding-3-small",
+    base_url = "https://api.openai.com/v1",
+    api_key = get_envvar("OPENAI_API_KEY"),
+    dims = NULL,
+    user = get_user(),
+    batch_size = 20L
 ) {
+  # Handles deferred evaluation, e.g., ragnar_store_create(embedder = embed_openai)
   if (missing(x) || is.null(x)) {
-    args <- capture_args()
-    fn <- partial(quote(ragnar::embed_openai), alist(x = ), args)
-    return(fn)
+    args <- rlang::enquos(model=model, base_url=base_url, api_key=api_key, dims=dims, user=user, batch_size=batch_size)
+    return(rlang::new_function(
+      rlang::pairlist2(x = ),
+      rlang::quo(ragnar::embed_openai(x = x, !!!args))
+    ))
   }
 
+  # Call the core function with "openai" specific parameters
+  embed_openai_core(
+    x = x,
+    model = model,
+    base_url = base_url,
+    api_key = api_key,
+    api_type = "openai",
+    dims = dims,
+    user = user,
+    batch_size = batch_size
+  )
+}
+
+
+#' @param api_key resolved using env var `AZURE_OPENAI_API_KEY`
+#' @param dims An integer, can be used to truncate the embedding to a specific size.
+#' @param user User name passed via the API.
+#'
+#' @returns A matrix of embeddings with 1 row per input string, or a dataframe with an 'embedding' column.
+#' @export
+#' @rdname embed_ollama
+embed_azure_openai <- function(
+    x,
+    deployment, # No default, as it's highly user-specific
+    endpoint = get_envvar("AZURE_OPENAI_ENDPOINT"),
+    api_key = get_envvar("AZURE_OPENAI_API_KEY"),
+    api_version = "2024-02-15-preview",
+    dims = NULL,
+    user = get_user(),
+    batch_size = 20L
+) {
+  # Handles deferred evaluation
+  if (missing(x) || is.null(x)) {
+    args <- rlang::enquos(deployment=deployment, endpoint=endpoint, api_key=api_key, api_version=api_version, dims=dims, user=user, batch_size=batch_size)
+    return(rlang::new_function(
+      rlang::pairlist2(x = ),
+      rlang::quo(ragnar::embed_azure_openai(x = x, !!!args))
+    ))
+  }
+
+  # Call the core function with "azure" specific parameters
+  embed_openai_core(
+    x = x,
+    model = deployment,
+    base_url = endpoint,
+    api_key = api_key,
+    api_type = "azure",
+    api_version = api_version,
+    dims = dims,
+    user = user,
+    batch_size = batch_size
+  )
+}
+
+
+embed_openai_core <- function(
+    x,
+    model,
+    base_url,
+    api_key,
+    api_type = c("openai", "azure"),
+    api_version = NULL, # Specific to Azure
+    dims = NULL,
+    user = get_user(),
+    batch_size = 20L
+) {
   if (is.data.frame(x)) {
     x[["embedding"]] <- Recall(
       x[["text"]],
-      model = model,
-      base_url = base_url,
+      model_or_deployment = model,
+      base_url_or_endpoint = base_url,
       api_key = api_key,
+      api_type = api_type,
+      api_version = api_version,
       dims = dims,
       user = user,
       batch_size = batch_size
@@ -119,6 +190,7 @@ embed_openai <- function(
   text <- x
   check_character(text)
   check_string(model, allow_empty = FALSE)
+  api_type <- rlang::arg_match(api_type)
 
   if (!length(text)) {
     # ideally we'd return a 0-row matrix, but currently the correct
@@ -127,11 +199,16 @@ embed_openai <- function(
   }
 
   ## open ai models have max token length of 8191... what happens if too long?
-  data <- list(model = model, input = NULL)
+  data <- list(input = NULL)
   data$user <- user
   if (!is.null(dims)) {
     check_number_whole(dims, min = 1L)
     data$dimensions <- as.integer(dims)
+  }
+
+  # For OpenAI, the model name goes in the body. For Azure, it's in the URL.
+  if (api_type == "openai") {
+    data$model <- model
   }
 
   starts <- seq.int(from = 1L, to = length(text), by = batch_size)
@@ -141,10 +218,24 @@ embed_openai <- function(
     ## max input is 8191 tokens per chunk... what happens if too long?
     data$input <- as.list(text[start:end])
 
-    req <- request(base_url) |>
+    # --- API-specific request building ---
+    if (api_type == "azure") {
+      check_string(base_url, allow_empty = FALSE, arg = "endpoint")
+      req <- request(base_url) |>
+        req_url_path_append("/openai/deployments") |>
+        req_url_path_append(model) |>
+        req_url_path_append("/embeddings") |>
+        req_url_query(`api-version` = api_version) |>
+        req_headers(`api-key` = api_key)
+    } else { # openai
+      req <- request(base_url) |>
+        req_url_path_append("/embeddings") |>
+        req_auth_bearer_token(api_key)
+    }
+
+    # --- Common request components ---
+    req <- req |>
       req_user_agent(ragnar_user_agent()) |>
-      req_url_path_append("/embeddings") |>
-      req_auth_bearer_token(api_key) |>
       req_retry(max_tries = 2L) |>
       req_body_json(data)
 
