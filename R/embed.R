@@ -221,25 +221,25 @@ embed_openai_core <- function(
     # --- API-specific request building ---
     if (api_type == "azure") {
       check_string(base_url, allow_empty = FALSE, arg = "endpoint")
-      req <- request(base_url) |>
-        req_url_path_append("/openai/deployments") |>
-        req_url_path_append(model) |>
-        req_url_path_append("/embeddings") |>
-        req_url_query(`api-version` = api_version) |>
-        req_headers(`api-key` = api_key)
+      req <- httr2::request(base_url) |>
+        httr2::req_url_path_append("/openai/deployments") |>
+        httr2::req_url_path_append(model) |>
+        httr2::req_url_path_append("/embeddings") |>
+        httr2::req_url_query(`api-version` = api_version) |>
+        httr2::req_headers(`api-key` = api_key)
     } else { # openai
-      req <- request(base_url) |>
-        req_url_path_append("/embeddings") |>
-        req_auth_bearer_token(api_key)
+      req <- httr2::request(base_url) |>
+        httr2::req_url_path_append("/embeddings") |>
+        httr2::req_auth_bearer_token(api_key)
     }
 
     # --- Common request components ---
     req <- req |>
-      req_user_agent(ragnar_user_agent()) |>
-      req_retry(max_tries = 2L) |>
-      req_body_json(data)
+      httr2::req_user_agent(ragnar_user_agent()) |>
+      httr2::req_retry(max_tries = 2L) |>
+      httr2::req_body_json(data)
 
-    resp <- req_perform(req)
+    resp <- httr2::req_perform(req)
 
     # embeddings is a list of length(text), of double vectors
 
@@ -259,7 +259,7 @@ embed_openai_core <- function(
     #  $ usage :List of 2
     #   ..$ prompt_tokens: int 12436
     #   ..$ total_tokens : int 12436
-    resp_body_json(resp, simplifyVector = TRUE)$data$embedding
+    httr2::resp_body_json(resp, simplifyVector = TRUE)$data$embedding
   })
 
   matrix(unlist(embeddings), nrow = length(text), byrow = TRUE)
