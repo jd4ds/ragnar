@@ -98,11 +98,11 @@ embed_openai <- function(
     batch_size = 20L
 ) {
   build_req <- function() {
-    request(base_url) |>
-      req_user_agent(ragnar_user_agent()) |>
-      req_url_path_append("/embeddings") |>
-      req_auth_bearer_token(api_key) |>
-      req_retry(max_tries = 2L)
+    httr2::request(base_url) |>
+      httr2::req_user_agent(ragnar_user_agent()) |>
+      httr2::req_url_path_append("/embeddings") |>
+      httr2::req_auth_bearer_token(api_key) |>
+      httr2::req_retry(max_tries = 2L)
   }
 
   prepare_body <- function(texts, dims, user) {
@@ -143,12 +143,12 @@ embed_azure_openai <- function(
     batch_size = 20L
 ) {
   build_req <- function() {
-    request(base_url) |>
-      req_user_agent(ragnar_user_agent()) |>
-      req_url_path_append(sprintf("/openai/deployments/%s/embeddings", deployment)) |>
-      req_url_query(`api-version` = api_version) |>
-      req_headers(`api-key` = api_key) |>
-      req_retry(max_tries = 2L)
+    httr2::request(base_url) |>
+      httr2::req_user_agent(ragnar_user_agent()) |>
+      httr2::req_url_path_append(sprintf("/openai/deployments/%s/embeddings", deployment)) |>
+      httr2::req_url_query(`api-version` = api_version) |>
+      httr2::req_headers(`api-key` = api_key) |>
+      httr2::req_retry(max_tries = 2L)
   }
 
   prepare_body <- function(texts, dims, user) {
@@ -227,9 +227,9 @@ embed_azure_openai <- function(
       body <- prepare_body(text[start:end], dims, user)
 
       req <- build_req() |>
-        req_body_json(body)
+        httr2::req_body_json(body)
 
-      resp <- req_perform(req)
+      resp <- httr2::req_perform(req)
 
       # embeddings is a list of length(text), of double vectors
       resp_body_json(resp, simplifyVector = TRUE)$data$embedding
