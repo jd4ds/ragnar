@@ -211,16 +211,25 @@ embed_openai_core <- function(
 
   embeddings <- map2(starts, ends, function(start, end) {
     ## max input is 8191 tokens per chunk... what happens if too long?
-    data$input <- as.list(text[start:end])
 
-    if (api_type == "openai") {
-      # For standard OpenAI, add the model to the request body.
-      data$model <- model
-    } else {
-      # For Azure, the 'model' key MUST NOT be in the body.
-      # Setting it to NULL ensures httr2 removes it from the JSON payload.
-      data$model <- NULL
+    # 1. Start with the input, which is always required.
+    batch_data <- list(
+      input = as.list(text[start:end])
+    )
+
+    # 2. Add optional parameters if they exist.
+    if (!is.null(user)) {
+      batch_data$user <- user
     }
+    if (!is.null(dims)) {
+      batch_data$dimensions <- as.integer(dims)
+    }
+
+    # 3. Conditionally add the 'model' key ONLY for standard OpenAI.
+    if (api_type == "openai") {
+      batch_data$model <- model
+    }
+    # For Azure, the 'model' key is never added to the list. This is the safest approach.
 
     # --- API-specific request building ---
     if (api_type == "azure") {
