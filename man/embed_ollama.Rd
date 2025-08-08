@@ -3,6 +3,7 @@
 \name{embed_ollama}
 \alias{embed_ollama}
 \alias{embed_openai}
+\alias{embed_azure_openai}
 \title{Embed Text}
 \usage{
 embed_ollama(
@@ -17,6 +18,17 @@ embed_openai(
   model = "text-embedding-3-small",
   base_url = "https://api.openai.com/v1",
   api_key = get_envvar("OPENAI_API_KEY"),
+  dims = NULL,
+  user = get_user(),
+  batch_size = 20L
+)
+
+embed_azure_openai(
+  x,
+  deployment = get_envvar("AZURE_OPENAI_DEPLOYMENT"),
+  api_version = get_envvar("AZURE_OPENAI_API_VERSION"),
+  base_url = get_envvar("AZURE_OPENAI_ENDPOINT"),
+  api_key = get_envvar("AZURE_OPENAI_API_KEY"),
   dims = NULL,
   user = get_user(),
   batch_size = 20L
@@ -51,6 +63,8 @@ If \code{x} is a character vector, then a numeric matrix is returned,
 where \code{nrow = length(x)} and \verb{ncol = <model-embedding-size>}. If \code{x} is a
 data.frame, then a new \code{embedding} matrix "column" is added, containing the
 matrix described in the previous sentence.
+
+A matrix of embeddings with 1 row per input string, or a dataframe with an 'embedding' column.
 
 A matrix of embeddings with 1 row per input string, or a dataframe with an 'embedding' column.
 }

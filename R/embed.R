@@ -89,90 +89,154 @@ embed_ollama <- function(
 #' @export
 #' @rdname embed_ollama
 embed_openai <- function(
-  x,
-  model = "text-embedding-3-small",
-  base_url = "https://api.openai.com/v1",
-  api_key = get_envvar("OPENAI_API_KEY"),
-  dims = NULL,
-  user = get_user(),
-  batch_size = 20L
+    x,
+    model = "text-embedding-3-small",
+    base_url = "https://api.openai.com/v1",
+    api_key = get_envvar("OPENAI_API_KEY"),
+    dims = NULL,
+    user = get_user(),
+    batch_size = 20L
 ) {
-  if (missing(x) || is.null(x)) {
-    args <- capture_args()
-    fn <- partial(quote(ragnar::embed_openai), alist(x = ), args)
-    return(fn)
-  }
-
-  if (is.data.frame(x)) {
-    x[["embedding"]] <- Recall(
-      x[["text"]],
-      model = model,
-      base_url = base_url,
-      api_key = api_key,
-      dims = dims,
-      user = user,
-      batch_size = batch_size
-    )
-    return(x)
-  }
-
-  text <- x
-  check_character(text)
-  check_string(model, allow_empty = FALSE)
-
-  if (!length(text)) {
-    # ideally we'd return a 0-row matrix, but currently the correct
-    # embedding_size is not convenient to access in this context
-    return(NULL)
-  }
-
-  ## open ai models have max token length of 8191... what happens if too long?
-  data <- list(model = model, input = NULL)
-  data$user <- user
-  if (!is.null(dims)) {
-    check_number_whole(dims, min = 1L)
-    data$dimensions <- as.integer(dims)
-  }
-
-  starts <- seq.int(from = 1L, to = length(text), by = batch_size)
-  ends <- c(starts[-1L] - 1L, length(text))
-
-  embeddings <- map2(starts, ends, function(start, end) {
-    ## max input is 8191 tokens per chunk... what happens if too long?
-    data$input <- as.list(text[start:end])
-
-    req <- request(base_url) |>
+  build_req <- function() {
+    request(base_url) |>
       req_user_agent(ragnar_user_agent()) |>
       req_url_path_append("/embeddings") |>
       req_auth_bearer_token(api_key) |>
-      req_retry(max_tries = 2L) |>
-      req_body_json(data)
+      req_retry(max_tries = 2L)
+  }
 
-    resp <- req_perform(req)
+  prepare_body <- function(texts, dims, user) {
+    data <- list(model = model, input = as.list(texts))
+    data$user <- user
+    if (!is.null(dims)) {
+      check_number_whole(dims, min = 1L)
+      data$dimensions <- as.integer(dims)
+    }
+    data
+  }
 
-    # embeddings is a list of length(text), of double vectors
-
-    # > resp_body_json(resp, simplifyVector = TRUE) |> str()
-    # List of 4
-    #  $ object: chr "list"
-    #  $ data  :'data.frame':	89 obs. of  3 variables:
-    #   ..$ object   : chr [1:89] "embedding" "embedding" "embedding" "embedding" ...
-    #   ..$ index    : int [1:89] 0 1 2 3 4 5 6 7 8 9 ...
-    #   ..$ embedding:List of 89
-    #   .. ..$ : num [1:1536] -0.01258 0.03318 0.00534 -0.04137 0.00282 ...
-    #   .. ..$ : num [1:1536] -0.0191 0.0215 0.0508 -0.0391 0.0168 ...
-    #   .. ..$ : num [1:1536] -0.0235 0.0288 0.0298 -0.0365 0.0191 ...
-    #   .. ..$ : num [1:1536] -0.000126 -0.005694 0.021306 -0.018764 -0.012051 ...
-    #   .. ..$ : num [1:1536] 0.02475 -0.00438 0.01781 -0.00192 0.01195 ...
-    #  $ model : chr "text-embedding-3-small"
-    #  $ usage :List of 2
-    #   ..$ prompt_tokens: int 12436
-    #   ..$ total_tokens : int 12436
-    resp_body_json(resp, simplifyVector = TRUE)$data$embedding
-  })
-
-  matrix(unlist(embeddings), nrow = length(text), byrow = TRUE)
+  .embed_openai_internal(
+    x = x,
+    dims = dims,
+    user = user,
+    batch_size = batch_size,
+    build_req = build_req,
+    prepare_body = prepare_body
+  )
 }
+
+#' @param api_key resolved using env var `OPENAI_API_KEY`
+#' @param dims An integer, can be used to truncate the embedding to a specific size.
+#' @param user User name passed via the API.
+#'
+#' @returns A matrix of embeddings with 1 row per input string, or a dataframe with an 'embedding' column.
+#' @export
+#' @rdname embed_ollama
+embed_azure_openai <- function(
+    x,
+    deployment = get_envvar("AZURE_OPENAI_DEPLOYMENT"),
+    api_version = get_envvar("AZURE_OPENAI_API_VERSION"),
+    base_url = get_envvar("AZURE_OPENAI_ENDPOINT"),
+    api_key = get_envvar("AZURE_OPENAI_API_KEY"),
+    dims = NULL,
+    user = get_user(),
+    batch_size = 20L
+) {
+  build_req <- function() {
+    request(base_url) |>
+      req_user_agent(ragnar_user_agent()) |>
+      req_url_path_append(sprintf("/openai/deployments/%s/embeddings", deployment)) |>
+      req_url_query(`api-version` = api_version) |>
+      req_headers(`api-key` = api_key) |>
+      req_retry(max_tries = 2L)
+  }
+
+  prepare_body <- function(texts, dims, user) {
+    data <- list(input = as.list(texts))
+    data$user <- user
+    if (!is.null(dims)) {
+      check_number_whole(dims, min = 1L)
+      data$dimensions <- as.integer(dims)
+    }
+    data
+  }
+
+  .embed_openai_internal(
+    x = x,
+    dims = dims,
+    user = user,
+    batch_size = batch_size,
+    build_req = build_req,
+    prepare_body = prepare_body
+  )
+}
+
+
+.embed_openai_internal <- function(
+    x,
+    dims = NULL,
+    user = get_user(),
+    batch_size = 20L,
+    max_tokens = 8191L,
+    build_req,
+    prepare_body
+  ) {
+    if (missing(x) || is.null(x)) {
+      args <- capture_args()
+      fn <- partial(.embed_openai_internal, alist(x = ), args)
+      return(fn)
+    }
+
+    if (is.data.frame(x)) {
+      x[["embedding"]] <- Recall(
+        x[["text"]],
+        dims = dims,
+        user = user,
+        batch_size = batch_size,
+        max_tokens = max_tokens,
+        build_req = build_req,
+        prepare_body = prepare_body
+      )
+      return(x)
+    }
+
+    text <- x
+    check_character(text)
+
+    if (!length(text)) {
+      # ideally we'd return a 0-row matrix, but currently the correct
+      # embedding_size is not convenient to access in this context
+      return(NULL)
+    }
+
+    ## open ai models have max token length of 8191... what happens if too long?
+    token_lengths <- tryCatch(ragnar::num_tokens(text), error = function(e) NA_integer_)
+    too_long <- which(!is.na(token_lengths) & token_lengths > max_tokens)
+    if (length(too_long)) {
+      stop(sprintf(
+        "The following inputs exceed the %d token limit: %s",
+        max_tokens,
+        paste(too_long, collapse = ", ")
+      ), call. = FALSE)
+    }
+
+    starts <- seq.int(from = 1L, to = length(text), by = batch_size)
+    ends <- c(starts[-1L] - 1L, length(text))
+
+    embeddings <- map2(starts, ends, function(start, end) {
+      body <- prepare_body(text[start:end], dims, user)
+
+      req <- build_req() |>
+        req_body_json(body)
+
+      resp <- req_perform(req)
+
+      # embeddings is a list of length(text), of double vectors
+      resp_body_json(resp, simplifyVector = TRUE)$data$embedding
+    })
+
+    matrix(unlist(embeddings), nrow = length(text), byrow = TRUE)
+  }
 
 
 # ---- utils ----
