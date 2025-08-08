@@ -134,8 +134,8 @@ embed_openai <- function(
 #' @rdname embed_ollama
 embed_azure_openai <- function(
     x,
-    deployment = get_envvar("AZURE_OPENAI_DEPLOYMENT"),
-    api_version = get_envvar("AZURE_OPENAI_API_VERSION"),
+    deployment,
+    api_version = "2024-02-15-preview",
     base_url = get_envvar("AZURE_OPENAI_ENDPOINT"),
     api_key = get_envvar("AZURE_OPENAI_API_KEY"),
     dims = NULL,

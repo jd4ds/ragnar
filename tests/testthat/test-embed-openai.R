@@ -1,12 +1,10 @@
 test_that("azure openai embeddings works", {
-  testthat::skip_if(Sys.getenv("OPENAI_API_KEY") == "")
+  # testthat::skip_if(Sys.getenv("OPENAI_API_KEY") == "")
   testthat::skip_if(Sys.getenv("AZURE_OPENAI_API_KEY") == "")
-  testthat::skip_if(Sys.getenv("AZURE_OPENAI_DEPLOYMENT") == "")
-  testthat::skip_if(Sys.getenv("AZURE_OPENAI_API_VERSION") == "")
   testthat::skip_if(Sys.getenv("AZURE_OPENAI_ENDPOINT") == "")
 
   ## Use the same model name for both APIs
-  model <- "text-embedding-3-small"
+  model <- "text-embedding-3-large"
 
   # --- OpenAI ---
   embs1_openai <- embed_openai("hello world", model = model)
@@ -21,7 +19,8 @@ test_that("azure openai embeddings works", {
   expect_equal(embs2_openai[1, ], embs_openai[2, ])
 
   # --- Azure OpenAI ---
-  embs1_azure <- embed_azure_openai("hello world")
+  embs1_azure <- embed_azure_openai("hello world",
+                                    deployment = model)
   embs2_azure <- embed_azure_openai("another hello world")
 
   embs_azure <- embed_azure_openai(
