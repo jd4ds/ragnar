@@ -25,8 +25,8 @@ embed_openai(
 
 embed_azure_openai(
   x,
-  deployment,
-  endpoint = get_envvar("AZURE_OPENAI_ENDPOINT"),
+  model,
+  base_url = get_envvar("AZURE_OPENAI_ENDPOINT"),
   api_key = get_envvar("AZURE_OPENAI_API_KEY"),
   api_version = "2024-02-15-preview",
   dims = NULL,
