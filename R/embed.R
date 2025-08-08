@@ -129,8 +129,8 @@ embed_openai <- function(
 #' @rdname embed_ollama
 embed_azure_openai <- function(
     x,
-    deployment, # No default, as it's highly user-specific
-    endpoint = get_envvar("AZURE_OPENAI_ENDPOINT"),
+    model, # No default, as it's highly user-specific
+    base_url = get_envvar("AZURE_OPENAI_ENDPOINT"),
     api_key = get_envvar("AZURE_OPENAI_API_KEY"),
     api_version = "2024-02-15-preview",
     dims = NULL,
@@ -139,7 +139,7 @@ embed_azure_openai <- function(
 ) {
   # Handles deferred evaluation
   if (missing(x) || is.null(x)) {
-    args <- rlang::enquos(deployment=deployment, endpoint=endpoint, api_key=api_key, api_version=api_version, dims=dims, user=user, batch_size=batch_size)
+    args <- rlang::enquos(deployment=model, endpoint=base_url, api_key=api_key, api_version=api_version, dims=dims, user=user, batch_size=batch_size)
     return(rlang::new_function(
       rlang::pairlist2(x = ),
       rlang::quo(ragnar::embed_azure_openai(x = x, !!!args))
@@ -149,8 +149,8 @@ embed_azure_openai <- function(
   # Call the core function with "azure" specific parameters
   embed_openai_core(
     x = x,
-    model = deployment,
-    base_url = endpoint,
+    model = model,
+    base_url = base_url,
     api_key = api_key,
     api_type = "azure",
     api_version = api_version,
