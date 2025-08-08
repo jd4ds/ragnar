@@ -175,8 +175,8 @@ embed_openai_core <- function(
   if (is.data.frame(x)) {
     x[["embedding"]] <- Recall(
       x[["text"]],
-      model_or_deployment = model,
-      base_url_or_endpoint = base_url,
+      model = model,
+      base_url = base_url,
       api_key = api_key,
       api_type = api_type,
       api_version = api_version,
